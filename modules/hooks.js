@@ -2,112 +2,100 @@ const MAX_ATTEMPTS = 1000;
 const TARGET_FORMAT = /([^\d]*)[\s]*([\d]+)/;
 
 const whisperError = (error) => {
-  console.error(`Forget VTT | Fudge | ${error}`);
+  console.error(`Fudge | ${error}`);
   ChatMessage.create({
-    user: game.user._id,
-    whisper: [game.user._id],
+    user: game.user.id,
+    whisper: [game.user.id],
     flavor: "Fudge",
     content: `<div>Error: ${error}</div>`
   });
 };
 
 const parseTarget = (target) => {
+  if (!target) return undefined;
   const match = target.match(TARGET_FORMAT);
+  if (!match) return undefined;
+
   const condition = match[1].trim();
   const value = parseInt(match[2].trim());
   switch (condition) {
     case "lt":
     case "<":
-      return {
-        condition: "lt",
-        value
-      };
+      return { condition: "lt", value };
     case "lte":
     case "<=":
-      return {
-        condition: "lte",
-        value
-      };
+      return { condition: "lte", value };
     case "gt":
     case ">":
-      return {
-        condition: "gt",
-        value
-      };
+      return { condition: "gt", value };
     case "gte":
     case ">=":
-      return {
-        condition: "gte",
-        value
-      };
+      return { condition: "gte", value };
     case "":
     case "eq":
     case "=":
     case "==":
     case "===":
-      return {
-        condition: "eq",
-        value
-      };
+      return { condition: "eq", value };
     default:
       return undefined;
   };
 };
 
-const parseDialogDoc = (doc) => {
+const parseDialogDoc = (html) => {
   try {
-    const formula = doc.find("input[name=formula]")[0].value;
-    const target = parseTarget(doc.find("input[name=target]")[0].value);
-    return {
-      formula,
-      target
-    };
+    // Na Dialog do Foundry, 'html' geralmente é um objeto jQuery
+    const formula = html.find("input[name=formula]").val();
+    const targetVal = html.find("input[name=target]").val();
+    const target = parseTarget(targetVal);
+    return { formula, target };
   } catch (e) {
     console.error(e);
-    return {
-      formula: undefined,
-      target: undefined
-    };
+    return { formula: undefined, target: undefined };
   }
 }
 
 const evaluateTotalVsTarget = (total, target) => {
   switch (target.condition) {
-    case "eq":
-      return total === target.value;
-    case "gt":
-      return total > target.value;
-    case "gte":
-      return total >= target.value;
-    case "lt":
-      return total < target.value;
-    case "lte":
-      return total <= target.value;
+    case "eq": return total === target.value;
+    case "gt": return total > target.value;
+    case "gte": return total >= target.value;
+    case "lt": return total < target.value;
+    case "lte": return total <= target.value;
   }
 };
 
-const onSubmit = async (doc) => {
-  const { formula, target } = parseDialogDoc(doc);
-  if (!formula) {
-    return whisperError("Missing Formula");
-  }
-  if (!target || !target.condition) {
-    return whisperError("Invalid Target Format");
-  }
+const onSubmit = async (html) => {
+  const { formula, target } = parseDialogDoc(html);
+  
+  if (!formula) return whisperError("Missing Formula");
+  if (!target || !target.condition) return whisperError("Invalid Target Format");
 
+  // Teste inicial para ver se a fórmula é válida
   try {
-    new Roll(formula).roll();
+    const testRoll = new Roll(formula);
+    // Na V13, evaluate é async
+    await testRoll.evaluate(); 
   } catch (e) {
     console.error(e);
     return whisperError("Invalid Formula");
   }
 
+  // Loop de tentativa
+  // ATENÇÃO: Como agora é async, isso pode demorar um pouco se o número for difícil
+  ui.notifications.info("Fudging dice... please wait.");
+  
   for (let i = 0; i < MAX_ATTEMPTS; i++) {
     const dice = new Roll(formula);
-    const r = dice.roll();
-    const total = r.total;
+    
+    // A MUDANÇA CRUCIAL: await no evaluate()
+    await dice.evaluate();
+    
+    const total = dice.total;
+    
     if (evaluateTotalVsTarget(total, target)) {
-      r.toMessage({
+      // Sucesso! Envia pro chat
+      await dice.toMessage({
         speaker: ChatMessage.getSpeaker()
       }, {
         rollMode: "roll"
@@ -116,43 +104,48 @@ const onSubmit = async (doc) => {
       return;
     }
   }
-  whisperError("Max Attempts Reached");
+  
+  whisperError("Max Attempts Reached (1000 tries failed)");
 };
 
 const showDialog = async () => {
-  const html = await renderTemplate("/modules/fudge/templates/dialog.html");
+  // Verifique se o caminho do template está correto no seu projeto
+  // Se module.json id for "fudge", a pasta deve ser modules/fudge/templates/...
+  const contentHtml = await renderTemplate("modules/fudge/templates/dialog.html", {});
+  
   return new Promise((resolve) => {
     new Dialog({
       title: 'Fudge',
-      content: html,
+      content: contentHtml,
       buttons: {
         roll: {
           label: "Roll",
-          callback: async (input) => {
-            resolve(await onSubmit(input));
+          callback: async (html) => {
+            resolve(await onSubmit(html));
           }
         }
       },
       default: "roll",
       close: () => resolve(null),
-      render: (doc) => {
-        doc.find("input[name=formula]")[0].focus();
+      render: (html) => {
+        // html é jQuery aqui
+        html.find("input[name=formula]").focus();
       }
     }).render(true);
   });
 }
 
 Hooks.on("getSceneControlButtons", (controls) => {
-  if (!game.user.isGM) {
-    return;
-  }
+  if (!game.user.isGM) return;
 
   const bar = controls.find((c) => c.name === "token");
-  bar.tools.push({
-    name: "fudge",
-    title: "Fudge",
-    icon: "fas fa-poo",
-    onClick: () => showDialog(),
-    button: true
-  });
+  if (bar) {
+      bar.tools.push({
+        name: "fudge",
+        title: "Fudge",
+        icon: "fas fa-dice-d20", // Mudei o ícone de cocô (poo) para d20, mas pode voltar se quiser rs
+        onClick: () => showDialog(),
+        button: true
+      });
+  }
 });
