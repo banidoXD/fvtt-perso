@@ -111,7 +111,7 @@ const onSubmit = async (html) => {
 const showDialog = async () => {
   // Verifique se o caminho do template está correto no seu projeto
   // Se module.json id for "fudge", a pasta deve ser modules/fudge/templates/...
-  const contentHtml = await renderTemplate("modules/fvtt-perso/templates/dialog.html", {});
+  const contentHtml = await renderTemplate("modules/perso/templates/dialog.html", {});
   
   return new Promise((resolve) => {
     new Dialog({
