@@ -1,18 +1,14 @@
 {
   "id": "perso",
-  "title": "perso",
+  "title": "Perso",
   "description": "Personalizado!",
   "authors": [
-    {
-      "name": "troygoode",
-      "flags": { "role": "Original Author" }
-    },
     {
       "name": "banidoXD",
       "flags": { "role": "V13 Update" }
     }
   ],
-  "url": "https://github.com/troygoode/fvtt-fudge",
+  "url": "https://github.com/banidoXD/fvtt-perso",
   "version": "1.2.0",
   "compatibility": {
     "minimum": "13",
@@ -25,5 +21,7 @@
       "name": "English",
       "path": "lang/en.json"
     }
-  ]
+  ],
+  "manifest": "https://raw.githubusercontent.com/banidoXD/fvtt-perso/master/module.json",
+  "download": "https://github.com/banidoXD/fvtt-perso/archive/refs/heads/master.zip"
 }
