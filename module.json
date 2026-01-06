@@ -18,7 +18,7 @@
     "minimum": "13",
     "verified": "13"
   },
-  "esmodules": ["scripts/hooks.js"],
+  "esmodules": ["modules/hooks.js"],
   "languages": [
     {
       "lang": "en",
